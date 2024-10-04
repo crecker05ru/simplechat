@@ -1,0 +1,48 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon index.js",
+    "websocket": "nodemon websocket.js",
+    "start": "cross-env NODE_ENV=production nodemon index.js",
+    "server": "nodemon index.js",
+    "client": "cd ../client && npm run dev",
+    "client:install": "cd ../client && npm install",
+    "client:build": "cd ../client && npm run build",
+    "client:start": "cd ../client && npm run start",
+    "concurrently": "cross-env NODE_ENV=development concurrently \"npm run server\" \"npm run client\"",
+    "production": "cross-env NODE_ENV=production concurrently \"npm run start\" \"npm run client:start\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^5.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "express-fileupload": "^1.2.1",
+    "express-ws": "^5.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "lowdb": "^3.0.0",
+    "mysql2": "^3.11.3",
+    "nodemailer": "^6.6.5",
+    "pg": "^8.7.1",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.6.5",
+    "socket.io": "^4.2.0",
+    "sqlite3": "^5.1.2",
+    "styled-components": "^5.3.1",
+    "uuid": "^8.3.2",
+    "uuidv4": "^6.2.12",
+    "ws": "^8.2.2"
+  },
+  "devDependencies": {
+    "concurrently": "^6.2.0",
+    "cross-env": "^7.0.3",
+    "nodemon": "^2.0.12"
+  }
+}
