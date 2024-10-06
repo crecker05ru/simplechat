@@ -1,232 +1,243 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      body {
+        margin: 0;
+        padding-bottom: 3rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+      }
 
-<head>
-  <title>Socket.IO chat</title>
-  <style>
-    body {
-      margin: 0;
-      padding-bottom: 3rem;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
+      #form {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 0.25rem;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        height: 3rem;
+        box-sizing: border-box;
+        backdrop-filter: blur(10px);
+      }
 
-    #form {
-      background: rgba(0, 0, 0, 0.15);
-      padding: 0.25rem;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      height: 3rem;
-      box-sizing: border-box;
-      backdrop-filter: blur(10px);
-    }
+      #input {
+        border: none;
+        padding: 0 1rem;
+        flex-grow: 1;
+        border-radius: 2rem;
+        margin: 0.25rem;
+      }
+      #username {
+        min-width: 200px;
+        padding: 1rem;
+        flex-grow: 1;
+        border-radius: 2rem;
+        margin: 0.25rem;
+      }
 
-    #input {
-      border: none;
-      padding: 0 1rem;
-      flex-grow: 1;
-      border-radius: 2rem;
-      margin: 0.25rem;
-    }
-    #username {
-      min-width: 200px;
-      padding: 1rem;
-      flex-grow: 1;
-      border-radius: 2rem;
-      margin: 0.25rem;
-    }
+      #input:focus {
+        outline: none;
+      }
 
-    #input:focus {
-      outline: none;
-    }
+      #form > button {
+        background: #333;
+        border: none;
+        padding: 0 1rem;
+        margin: 0.25rem;
+        border-radius: 3px;
+        outline: none;
+        color: #fff;
+      }
 
-    #form>button {
-      background: #333;
-      border: none;
-      padding: 0 1rem;
-      margin: 0.25rem;
-      border-radius: 3px;
-      outline: none;
-      color: #fff;
-    }
+      #messages {
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+      }
 
-    #messages {
-      list-style-type: none;
-      margin: 0;
-      padding: 0;
-    }
+      #messages > li {
+        padding: 0.5rem 1rem;
+      }
 
-    #messages>li {
-      padding: 0.5rem 1rem;
-    }
+      #messages > li:nth-child(odd) {
+        background: #efefef;
+      }
+    </style>
+  </head>
 
-    #messages>li:nth-child(odd) {
-      background: #efefef;
-    }
-  </style>
-</head>
+  <body>
+    <ul id="messages"></ul>
+    <button onclick="disconnect()">disconnect</button>
+    <!-- <button onclick="connect">connect</button> -->
+    <input
+      id="username"
+      placeholder="enter name and press Enter"
+      autocomplete="off"
+    />
+    <form id="form" action="" onkeydown="return event.key != 'Enter';">
+      <input id="input" autocomplete="off" />
+      <button type="button" onclick="sendMessage()">Send</button>
+    </form>
 
-<body>
-  <ul id="messages"></ul>
-  <button onclick="disconnect()">disconnect</button>
-  <!-- <button onclick="connect">connect</button> -->
-  <input id="username" placeholder="enter name and press Enter"  autocomplete="off" />
-  <form id="form" action="" onkeydown="return event.key != 'Enter';">
-    <input id="input" autocomplete="off" />
-    <button type="button" onclick="sendMessage()">Send</button>
+    <script>
+      let socket;
+      let messagesElement = document.getElementById("messages");
+      let form = document.getElementById("form");
+      let input = document.getElementById("input");
+      let usernameInput = document.getElementById("username");
+      let messages = [];
+      let showChat = true;
+      let username = "i";
+      let usersOnline = [];
+      let connected = false;
+      let showPreviousMessages = false;
+      input.addEventListener("keydown", function (event) {
+        if (event.key == "Enter") sendMessage();
+      });
+      usernameInput.addEventListener("keydown", createUser);
+      function connect() {
+        socket = new WebSocket("ws://localhost:3002/echo");
+        socket.onopen = () => {
+          setConnected(true);
+          const message = {
+            event: "connection",
+            username,
+            id: Date.now(),
+          };
+          socket.send(JSON.stringify(message));
+        };
+        socket.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          setMessages(message);
 
-  </form>
+          if (message.event == "connection") {
+            setUsersOnline(message.username);
+          }
+        };
+        socket.onclose = () => {
+          setConnected(false);
+          const message = {
+            event: "close",
+            username,
+            id: Date.now(),
+          };
+          setMessages(message);
+          socket.send(JSON.stringify(message));
+        };
+        socket.onerror = () => {};
+      }
 
-  <script>
-    let socket
-    let messagesElement = document.getElementById('messages');
-    let form = document.getElementById('form');
-    let input = document.getElementById('input');
-    let usernameInput = document.getElementById('username');
-    let messages = []
-    let showChat = true
-    let username = 'i'
-    let usersOnline = []
-    let connected = false
-    let showPreviousMessages = false
-    input.addEventListener("keydown", function(event){
-      if(event.key == 'Enter') sendMessage()
-    })
-    usernameInput.addEventListener("keydown", function(event){
-      if(event.key == 'Enter') {
-        if(usernameInput.value?.length > 0){
-        username = usernameInput.value
-        connect()
+      function createUser(event) {
+        if (event.key == "Enter") {
+          if (usernameInput.value?.length > 0) {
+            username = usernameInput.value;
+            connect();
+            setTimeout(() => {
+              usernameInput.removeEventListener("keydown", createUser);
+              usernameInput.remove();
+            }, 300);
+          }
+        }
+      }
+
+      function sendMessage() {
+        if (input?.value?.length < 1) return;
+        const message = {
+          username,
+          message: input.value,
+          id: Date.now(),
+          event: "message",
+        };
+        socket.send(JSON.stringify(message));
+        setValue("");
+      }
+
+      function showChatHandler() {
+        setShowChat(!showChat);
+        if (!connected) {
+          connect();
+        }
+      }
+
+      function setShowChat(val) {
+        showChat = val;
+      }
+
+      function setMessages(val) {
+        if (messages?.length === 0) {
+          if (Array.isArray(val)) {
+            messages.push(...val);
+          } else {
+            messages.push(val);
+          }
+        }
+
         setTimeout(() => {
-          usernameInput.remove()
+          if (Array.isArray(val)) {
+            renderMessages([...messages, ...val]);
+          } else {
+            messages.push(val);
+            renderMessages([...messages]);
+          }
         }, 300);
       }
+
+      function setUsersOnline(val) {
+        usersOnline = val;
       }
-    })
-    function connect() {
-      socket = new WebSocket('ws://localhost:3001/echo')
-      socket.onopen = () => {
-        setConnected(true)
-        const message = {
-          event: 'connection',
-          username,
-          id: Date.now()
-        }
-        socket.send(JSON.stringify(message))
-        // socket.send(message)
-        // setMessages(message)
+
+      function setConnected(val) {
+        connected = val;
       }
-      socket.onmessage = (event) => {
-        const message = JSON.parse(event.data)
-        setMessages(message)
-        console.log('const message',message)
 
-        if (message.event == 'connection') {
-          setUsersOnline(message.username)
-        }
+      function setValue(val) {
+        input.value = val;
       }
-      socket.onclose = () => {
-        setConnected(false)
-        const message = {
-          event: 'close',
-          username,
-          id: Date.now()
-        }
-        setMessages(message)
-        socket.send(JSON.stringify(message))
+
+      function setShowPreviousMessages(val) {
+        showPreviousMessages = val;
       }
-      socket.onerror = () => {
+
+      function renderMessages(messages) {
+        const oldMessages = document.getElementById("messages");
+        const newMessages = document.createElement("ul");
+        newMessages.setAttribute("id", "messages");
+        if (oldMessages) oldMessages.remove();
+        document.body.prepend(newMessages);
+        messages.forEach((message) => {
+          const p = document.createElement("p");
+          p.classList.add("message");
+          if (message.event === "close") {
+            p.innerText = `Пользователь ${message.username} покинул чат`;
+          } else if (message.event === "connection") {
+            p.innerText = `Пользователь ${message.username} присоеденился к чату`;
+          } else {
+            p.innerText = `${message.username}: ${message.message}`;
+          }
+          newMessages.append(p);
+        });
       }
-    }
 
-    function sendMessage() {
-      // console.log('e',e)
-      // e.preventDefault();
-      if(input?.value?.length < 1) return;
-      const message = {
-        username,
-        message: input.value,
-        id: Date.now(),
-        event: 'message'
+      function appendMessage(message) {
+        const p = document.createElement("p");
+        p.innerText = `${message.username}: ${message.message}`;
+        messagesElement.append(p);
       }
-      socket.send(JSON.stringify(message));
-      // appendMessage(messages)
-      // setMessages(messages)
-      console.log('messages',messages)
-      setValue('')
-    }
 
-    function showChatHandler() {
-      setShowChat(!showChat)
-      if (!connected) {
-        connect()
+      function disconnect() {
+        socket.close();
+        usernameInput = document.createElement("input");
+        usernameInput.setAttribute("id", "username");
+        document.body.prepend(usernameInput);
+        usernameInput.addEventListener("keydown", createUser);
       }
-    }
 
-    function setShowChat(val) {
-      showChat = val
-    }
-
-    function setMessages (val){
-      // messages = val
-      if(messages?.length === 0){
-        messages = val
-      }
-      setTimeout(() => {
-      renderMessages([...messages,val])
-      }, 300);
-      console.log('setMessages (val)',val)
-    }
-
-    function setUsersOnline (val){
-      usersOnline = val
-    }
-
-    function setConnected (val){
-      connected = val
-    }
-
-    function setValue (val){
-      input.value = val
-    }
-
-    function setShowPreviousMessages (val){
-      showPreviousMessages = val
-    }
-
-    function renderMessages(messages) {
-      console.log('renderMessages(messages)',messages)
-      messages.forEach(message => {
-      const p =  document.createElement('p')
-      if(message.event === 'close'){
-      p.innerText = `Пользователь ${message.username} покинул чат`
-      }else if(message.event === 'connection'){
-      p.innerText = `Пользователь ${message.username} присоеденился к чату`
-      }else {
-      p.innerText = `${message.username}: ${message.message}`
-        
-      }
-      messagesElement.append(p)
+      window.addEventListener("load", () => {
+        console.log("LOADED");
       });
-    }
-
-    function appendMessage(message) {
-      const p =  document.createElement('p')
-      p.innerText = `${message.username}: ${message.message}`
-      messagesElement.append(p)
-    }
-
-    function disconnect(){
-      socket.close()
-    }
-
-    window.addEventListener('load', () => {
-      // connect()
-      console.log('LOADED')
-    })
-  </script>
-</body>
-
+    </script>
+  </body>
 </html>
